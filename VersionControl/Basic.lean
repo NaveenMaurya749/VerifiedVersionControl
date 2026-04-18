@@ -1,41 +1,44 @@
 namespace VersionControl
 
-def Agent := Nat
--- The type of agents 
+abbrev File := String     -- Filepath 
+abbrev Content := String  -- Contents as a string
+abbrev AgentID := Nat     -- Identifiers for local agents 
 
-def ValidJSONFormat : String → Type :=
-  fun _ ↦ Nat 
+-- A partial map from filepaths to content
+-- (We can change this later to refer an actual filesystem)
+abbrev Repository := File → Option Content
 
-def checkValid : String → Bool :=
-  fun _ ↦ True
+structure System where
+  (origin : Repository)
+  (agents : Agent → Repository)
 
---instance : (σ : String) → (checkValid σ = True) → (ValidJSONFormat σ)  
+inductive Timeline (σ : System) where
+| origin  : Timeline σ
+| agentic : Agent → Timeline σ
 
-inductive Timeline where
-| origin : Timeline
-| remote : (a : Agent) → Timeline
+-- Changes to a filepath, currently only rewrite supported
+def Diff := File → Option Content
 
-inductive Commit where
-| init : Commit 
-| update : (author : Agent) → (changes : Diff) → (parent : Commit) → Commit
+inductive Commit (author : Agent) where
+| update (changes : Diff) : Commit author 
 
-#print Timeline
-#print Commit
+inductive Action (σ : System) where
+| commit (author : Agent) : Commit author → Action σ 
+| merge  (source : Timeline σ) (dest : Timeline σ) : Action σ
 
-#check Commit.update  
+def push {σ : System} (source : Timeline σ) : Action σ :=
+  Action.merge source Timeline.origin 
 
--- Or maybe implement as a typeclass
-inductive Action where
-| commit : Commit → Action
-| pull   : (recipient : Agent) → Action
-| push   : (author : Agent) → Commit  → Action
-| merge  : Commit → Commit → Action
+def pull {σ : System} (destination : Timeline σ) : Action σ :=
+  Action.merge Timeline.origin destination
 
---def HandleAction : Action → IO() :=
---  do
+inductive safeAction (σ : System) where
 
+-- This implementation is subject to change
+def executeChanges : Repository → Diff → Repository :=
+  fun ρ δ ↦ (fun f ↦ if δ f ≠ none then δ f else ρ f)
 
---inductive SafeAction where
---| safePull : 
+def executeAction {σ : System} (_ : safeAction σ) : IO Unit := 
+  println! "Hello, world!"
 
 end VersionControl
