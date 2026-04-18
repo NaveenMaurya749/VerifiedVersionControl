@@ -1,0 +1,10 @@
+name = "VersionControl"
+version = "0.1.0"
+defaultTargets = ["versioncontrol"]
+
+[[lean_lib]]
+name = "VersionControl"
+
+[[lean_exe]]
+name = "versioncontrol"
+root = "Main"
