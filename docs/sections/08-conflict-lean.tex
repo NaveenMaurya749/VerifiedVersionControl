@@ -1,0 +1,205 @@
+\section{Conflict.lean}
+
+\code{Conflict.lean} defines when two hunks or two diffs conflict. It gives
+both logical specifications in \code{Prop} and executable boolean checks in
+\code{Bool}. It also proves that the boolean checks match the logical
+specifications.
+
+\subsection{Imports and Namespace}
+
+This module depends on \code{Defns.lean} for \code{Range}, \code{Hunk}, and
+\code{Diff}, and uses \code{Mathlib.Tactic} for the short symmetry and
+reflection proofs. All declarations remain in the \code{VersionControl}
+namespace.
+
+\subsection{Logical Conflict Definitions}
+
+\begin{definition}[identicalChange]
+\code{[identicalChange]} has type \code{Hunk -> Hunk -> Prop}. It states that
+two hunks have the same \code{range}, the same \code{before} lines, and the
+same \code{after} lines. The \code{seq} and \code{op} fields are not part of
+this equality test.
+\end{definition}
+
+\begin{definition}[pointInsertConflict]
+\code{[pointInsertConflict]} has type \code{Hunk -> Hunk -> Prop}. It states
+that both hunks are insert hunks, both insert at the same start line, and their
+\code{after} lists are different.
+\end{definition}
+
+\begin{definition}[hunksConflict]
+\code{[hunksConflict]} has type \code{Hunk -> Hunk -> Prop}. It states that two
+hunks conflict when they are not identical and either their ranges overlap or
+they have a point-insert conflict.
+\end{definition}
+
+\begin{definition}[diffsConflict]
+\code{[diffsConflict]} has type \code{Diff -> Diff -> Prop}. It states that
+two diffs conflict when there exists a hunk in the left diff and a hunk in the
+right diff such that the two hunks conflict.
+\end{definition}
+
+\begin{definition}[compatible]
+\code{[compatible]} has type \code{Diff -> Diff -> Prop}. It states that every
+hunk in the left diff is non-conflicting with every hunk in the right diff.
+\end{definition}
+
+\subsection{Decidable Instances}
+
+\begin{definition}[Decidable identicalChange]
+\code{[Decidable identicalChange]} supplies a decision procedure for
+\code{identicalChange left right}.
+\end{definition}
+
+\begin{definition}[Decidable Range.overlaps]
+\code{[Decidable Range.overlaps]} supplies a decision procedure for
+\code{left.overlaps right}.
+\end{definition}
+
+\begin{definition}[Decidable pointInsertConflict]
+\code{[Decidable pointInsertConflict]} supplies a decision procedure for
+\code{pointInsertConflict left right}.
+\end{definition}
+
+\subsection{Boolean Conflict Checks}
+
+\begin{definition}[hunkConflictFlag]
+\code{[hunkConflictFlag]} has type \code{Hunk -> Hunk -> Bool}. It is the
+executable hunk-conflict check. It returns \code{true} exactly when the hunks
+are not identical and either their ranges overlap or they have a point-insert
+conflict.
+\end{definition}
+
+\begin{definition}[diffConflictFlag]
+\code{[diffConflictFlag]} has type \code{Diff -> Diff -> Bool}. It is the
+executable diff-conflict check. It returns \code{true} exactly when some pair
+of hunks, one from each diff, has \code{hunkConflictFlag = true}.
+\end{definition}
+
+\begin{definition}[decide]
+\code{[decide]} converts a decidable proposition into a boolean. This file uses
+\code{decide} to compute \code{identicalChange}, \code{Range.overlaps}, and
+\code{pointInsertConflict} inside \code{hunkConflictFlag}.
+\end{definition}
+
+\subsection{Hunk Theorems}
+
+\begin{theorem}[identicalChange\_comm]
+\code{[identicalChange_comm]} states that \code{identicalChange} is symmetric:
+\code{identicalChange left right <-> identicalChange right left}.
+\end{theorem}
+
+\begin{theorem}[not\_hunksConflict\_of\_identicalChange]
+\code{[not_hunksConflict_of_identicalChange]} states that identical hunks do
+not conflict.
+\end{theorem}
+
+\begin{theorem}[hunksConflict\_comm]
+\code{[hunksConflict_comm]} states that hunk conflict is symmetric:
+\code{hunksConflict left right <-> hunksConflict right left}.
+\end{theorem}
+
+\begin{theorem}[identical\_hunks\_not\_conflict]
+\code{[identical_hunks_not_conflict]} states that a hunk does not conflict with
+itself.
+\end{theorem}
+
+\begin{theorem}[separated\_hunks\_not\_conflict]
+\code{[separated_hunks_not_conflict]} states that two hunks do not conflict if
+their ranges are separated and there is no point-insert conflict.
+\end{theorem}
+
+\begin{theorem}[same\_point\_equal\_insert\_not\_conflict]
+\code{[same_point_equal_insert_not_conflict]} states that two inserts at the
+same point with the same inserted text do not conflict, assuming both
+\code{before} lists are empty.
+\end{theorem}
+
+\subsection{Boolean Reflection Theorems}
+
+\begin{theorem}[hunkConflictFlag\_eq\_true\_iff]
+\code{[hunkConflictFlag_eq_true_iff]} states that
+\code{hunkConflictFlag left right = true} is equivalent to
+\code{hunksConflict left right}.
+\end{theorem}
+
+\begin{theorem}[hunkConflictFlag\_eq\_false\_iff]
+\code{[hunkConflictFlag_eq_false_iff]} states that
+\code{hunkConflictFlag left right = false} is equivalent to
+\code{not hunksConflict left right}.
+\end{theorem}
+
+\begin{theorem}[identical\_hunks\_not\_flagged]
+\code{[identical_hunks_not_flagged]} states that
+\code{hunkConflictFlag hunk hunk = false}.
+\end{theorem}
+
+\begin{theorem}[same\_point\_equal\_insert\_not\_flagged]
+\code{[same_point_equal_insert_not_flagged]} is the boolean version of
+\code{same_point_equal_insert_not_conflict}. It states that equal same-point
+insert hunks produce \code{hunkConflictFlag = false}.
+\end{theorem}
+
+\subsection{Diff Theorems}
+
+\begin{theorem}[diffConflictFlag\_eq\_true\_iff]
+\code{[diffConflictFlag_eq_true_iff]} states that
+\code{diffConflictFlag left right = true} is equivalent to
+\code{diffsConflict left right}.
+\end{theorem}
+
+\begin{theorem}[diffConflictFlag\_eq\_false\_iff]
+\code{[diffConflictFlag_eq_false_iff]} states that
+\code{diffConflictFlag left right = false} is equivalent to
+\code{not diffsConflict left right}.
+\end{theorem}
+
+\begin{theorem}[flagged\_implies\_real\_conflict]
+\code{[flagged_implies_real_conflict]} states that if the executable diff flag
+returns \code{true}, then the logical proposition \code{diffsConflict} holds.
+\end{theorem}
+
+\begin{theorem}[real\_conflict\_implies\_flagged]
+\code{[real_conflict_implies_flagged]} states that if \code{diffsConflict}
+holds, then the executable diff flag returns \code{true}.
+\end{theorem}
+
+\begin{theorem}[diffsConflict\_comm]
+\code{[diffsConflict_comm]} states that diff conflict is symmetric:
+\code{diffsConflict left right <-> diffsConflict right left}.
+\end{theorem}
+
+\begin{theorem}[compatible\_iff\_not\_diffsConflict]
+\code{[compatible_iff_not_diffsConflict]} states that \code{compatible left right}
+is equivalent to \code{not diffsConflict left right}.
+\end{theorem}
+
+\begin{theorem}[compatible\_empty\_left]
+\code{[compatible_empty_left]} states that an empty diff on the left is
+compatible with any diff.
+\end{theorem}
+
+\begin{theorem}[compatible\_empty\_right]
+\code{[compatible_empty_right]} states that an empty diff on the right is
+compatible with any diff.
+\end{theorem}
+
+\begin{theorem}[compatible\_comm]
+\code{[compatible_comm]} states that compatibility is symmetric:
+\code{compatible left right <-> compatible right left}.
+\end{theorem}
+
+\subsection{Execution Pipeline}
+
+The conflict-checking pipeline is:
+
+\begin{enumerate}
+  \item \code{hunkConflictFlag} computes conflict for two hunks.
+  \item \code{diffConflictFlag} computes whether any hunk pair conflicts.
+  \item \code{hunkConflictFlag_eq_true_iff} connects the hunk boolean check to
+    \code{hunksConflict}.
+  \item \code{diffConflictFlag_eq_true_iff} connects the diff boolean check to
+    \code{diffsConflict}.
+  \item \code{compatible_iff_not_diffsConflict} states compatibility as the
+    absence of diff conflict.
+\end{enumerate}

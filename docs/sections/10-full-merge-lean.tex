@@ -1,0 +1,243 @@
+\section{FullMerge.lean}
+
+\code{FullMerge.lean} connects the previous layers into a merge pipeline. It
+replays histories, finds residual diffs, detects conflicts, constructs clean
+merge results, and defines multi-agent compatibility.
+
+\subsection{Imports and Namespace}
+
+This module builds on \code{Defns.lean}, \code{Semantics.lean},
+\code{History.lean}, and \code{Conflict.lean}. It uses
+\code{Mathlib.Tactic} for the short compatibility proofs.
+
+\subsection{Merge Types}
+
+\begin{definition}[mergeArtifactAgent and mergeArtifactTimestamp]
+\code{[mergeArtifactAgent]} and \code{[mergeArtifactTimestamp]} are the
+canonical metadata used for clean merge artifacts. A merged diff is constructed
+by the merge pipeline rather than authored by one input agent, so the code makes
+that canonical metadata explicit instead of hard-coding anonymous literals.
+\end{definition}
+
+\begin{definition}[MergeM]
+\code{[MergeM]} is an abbreviation for \code{Except String}. It marks merge
+pipeline computations that can fail with an error message.
+\end{definition}
+
+\begin{definition}[MergeResult]
+\code{[MergeResult]} is an inductive type with constructors
+\code{MergeResult.clean} and \code{MergeResult.conflict}.
+\code{clean} carries a merged \code{Diff}. \code{conflict} carries a list of
+conflicting \code{Hunk} witnesses.
+\end{definition}
+
+\subsection{Replay}
+
+\begin{definition}[replayFromCommon]
+\code{[replayFromCommon]} has type
+\code{BaseFile -> PushHistory -> MergeM BaseFile}. It folds through a residual
+history and applies each step's diff to the current file with \code{applyDiff}.
+\end{definition}
+
+\begin{theorem}[replayFromCommon\_nil]
+\code{[replayFromCommon_nil]} states that replaying an empty history returns
+the original base file.
+\end{theorem}
+
+\begin{theorem}[replayFromCommon\_append]
+\code{[replayFromCommon_append]} states that replaying \code{h1 ++ h2} is the
+same as replaying \code{h1} and then replaying \code{h2} from the intermediate
+file.
+\end{theorem}
+
+\subsection{Residual Diffs and Merge Artifacts}
+
+\begin{definition}[residualDiffs]
+\code{[residualDiffs]} maps a \code{PushHistory} to the list of \code{Diff}
+values stored in its patch steps.
+\end{definition}
+
+\begin{definition}[conflictWitnesses]
+\code{[conflictWitnesses]} takes left and right diff lists and returns the
+hunks from both sides that participate in a cross-side conflict according to
+\code{hunkConflictFlag}.
+\end{definition}
+
+\begin{definition}[dedupeIdenticalSortedHunks]
+\code{[dedupeIdenticalSortedHunks]} removes adjacent duplicate hunks from a
+sorted hunk list when the duplicates are literally the same edit. This prevents
+clean merges of identical edits from producing an invalid overlapping merged
+diff.
+\end{definition}
+
+\begin{definition}[mergedDiffFrom]
+\code{[mergedDiffFrom]} constructs a merged \code{Diff} from a common base file
+and two residual diff lists. It chooses a file name, concatenates all hunks from
+both sides, sorts them with \code{Hunk.compareByRange}, removes identical
+duplicates, renumbers their \code{seq} fields, sets
+\code{base\_line\_count} to \code{common.length}, and uses the canonical merge
+artifact metadata.
+\end{definition}
+
+\begin{theorem}[residualDiffs\_nil]
+\code{[residualDiffs_nil]} states that the residual diffs of the empty history
+are \code{[]}.
+\end{theorem}
+
+\begin{theorem}[residualDiffs\_cons]
+\code{[residualDiffs_cons]} states that residual diffs of \code{step :: rest}
+are \code{step.diff :: residualDiffs rest}.
+\end{theorem}
+
+\subsection{Three-Way Check}
+
+\begin{definition}[threeWayCheck]
+\code{[threeWayCheck]} has type
+\code{BaseFile -> PushHistory -> PushHistory -> MergeM (Option MergeResult)}.
+It replays the left and right residual histories from the common file. It then
+checks whether any residual left diff conflicts with any residual right diff.
+If a conflict exists, it returns \code{some (.conflict witnesses)}. Otherwise,
+it returns \code{some (.clean mergedDiff)}.
+\end{definition}
+
+\begin{theorem}[threeWayCheck\_of\_conflictFlag\_true]
+\code{[threeWayCheck_of_conflictFlag_true]} states the exact output of
+\code{threeWayCheck} when both residual histories replay successfully and the
+cross-history conflict flag is \code{true}.
+\end{theorem}
+
+\begin{theorem}[threeWayCheck\_of\_conflictFlag\_false]
+\code{[threeWayCheck_of_conflictFlag_false]} states the exact output of
+\code{threeWayCheck} when both residual histories replay successfully and the
+cross-history conflict flag is \code{false}.
+\end{theorem}
+
+\subsection{Full Merge}
+
+\begin{definition}[reconstructAncestor]
+\code{[reconstructAncestor]} has type
+\code{BaseFile -> PushHistory -> PushHistory -> MergeM BaseFile}. It replays
+the shared prefix of the left history from the initial file, using
+\code{sharedStepCount left right}.
+\end{definition}
+
+\begin{definition}[fullMerge]
+\code{[fullMerge]} has type
+\code{BaseFile -> PushHistory -> PushHistory -> MergeM (Option MergeResult)}.
+It calls \code{splitAtNearestCommonParent?}. If there is no common parent, it
+returns \code{none}. If a split exists, it reconstructs the ancestor file and
+runs \code{threeWayCheck} on the residual histories.
+\end{definition}
+
+\subsection{N-Way Compatibility}
+
+\begin{definition}[nWayCompatible.aux]
+\code{[nWayCompatible.aux]} checks whether one diff is conflict-free against
+every diff in a list.
+\end{definition}
+
+\begin{theorem}[nWayCompatible\_aux\_nil]
+\code{[nWayCompatible_aux_nil]} states that the auxiliary check against an empty
+list returns \code{true}.
+\end{theorem}
+
+\begin{theorem}[nWayCompatible\_aux\_cons]
+\code{[nWayCompatible_aux_cons]} states the recursive equation for checking one
+diff against \code{d2 :: rest}.
+\end{theorem}
+
+\begin{definition}[nWayCompatible]
+\code{[nWayCompatible]} has type \code{List Diff -> Bool}. It checks whether
+all pairs of diffs in a list are conflict-free.
+\end{definition}
+
+\begin{theorem}[nWayCompatible\_nil]
+\code{[nWayCompatible_nil]} states that the empty list is n-way compatible.
+\end{theorem}
+
+\begin{theorem}[nWayCompatible\_cons]
+\code{[nWayCompatible_cons]} states the recursive equation for
+\code{nWayCompatible (d :: rest)}.
+\end{theorem}
+
+\begin{theorem}[nWayCompatible\_singleton]
+\code{[nWayCompatible_singleton]} states that a singleton diff list is
+compatible.
+\end{theorem}
+
+\begin{definition}[PairwiseCompatible]
+\code{[PairwiseCompatible]} is the proposition-level version of
+\code{nWayCompatible}. It states that each diff is compatible with every later
+diff in the list.
+\end{definition}
+
+\begin{theorem}[PairwiseCompatible\_nil]
+\code{[PairwiseCompatible_nil]} states that the empty list is pairwise
+compatible.
+\end{theorem}
+
+\begin{theorem}[PairwiseCompatible\_cons]
+\code{[PairwiseCompatible_cons]} states the recursive proposition-level form of
+pairwise compatibility.
+\end{theorem}
+
+\begin{theorem}[nWayCompatible\_eq\_true\_iff]
+\code{[nWayCompatible_eq_true_iff]} states that
+\code{nWayCompatible ds = true} is equivalent to \code{PairwiseCompatible ds}.
+\end{theorem}
+
+\begin{theorem}[nWayCompatible\_sound]
+\code{[nWayCompatible_sound]} states that if the boolean n-way compatibility
+check returns \code{true}, then \code{PairwiseCompatible} holds.
+\end{theorem}
+
+\begin{theorem}[nWayCompatible\_complete]
+\code{[nWayCompatible_complete]} states that if \code{PairwiseCompatible}
+holds, then the boolean n-way compatibility check returns \code{true}.
+\end{theorem}
+
+\subsection{Valid Merge}
+
+\begin{definition}[ValidMerge]
+\code{[ValidMerge]} has type \code{List Diff -> Prop}. It states that the list
+has at least two diffs and is \code{PairwiseCompatible}.
+\end{definition}
+
+\begin{theorem}[validMerge\_iff]
+\code{[validMerge_iff]} unfolds \code{ValidMerge}: it is equivalent to
+\code{2 <= diffs.length} and \code{PairwiseCompatible diffs}.
+\end{theorem}
+
+\begin{theorem}[validMerge\_iff\_flag]
+\code{[validMerge_iff_flag]} connects the proposition-level validity condition
+to the boolean check: \code{ValidMerge diffs} is equivalent to
+\code{2 <= diffs.length} and \code{nWayCompatible diffs = true}.
+\end{theorem}
+
+\begin{theorem}[validMerge\_of\_flag]
+\code{[validMerge_of_flag]} states that enough diffs plus a true compatibility
+flag imply \code{ValidMerge}.
+\end{theorem}
+
+\begin{theorem}[flag\_of\_validMerge]
+\code{[flag_of_validMerge]} states that a valid merge has
+\code{nWayCompatible diffs = true}.
+\end{theorem}
+
+\begin{theorem}[validMerge\_has\_two\_or\_more]
+\code{[validMerge_has_two_or_more]} states that any valid merge has at least
+two diffs.
+\end{theorem}
+
+\subsection{Common Parent Theorems}
+
+\begin{theorem}[split\_ne\_none\_of\_shared\_nonempty]
+\code{[split_ne_none_of_shared_nonempty]} states that if two histories have a
+nonempty shared commit path, then \code{splitAtNearestCommonParent?} is not
+\code{none}.
+\end{theorem}
+
+\begin{theorem}[common\_parent\_exists\_for\_two]
+\code{[common_parent_exists_for_two]} states that two valid histories with a
+nonempty shared commit path have a common-parent split.
+\end{theorem}

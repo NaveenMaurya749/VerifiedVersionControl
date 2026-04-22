@@ -1,0 +1,99 @@
+\section{Conceptual Definitions}
+
+\begin{definition}[Multi-Agent System]\label{def:multi-agent-system}
+A multi-agent system consists of independent agents editing the same file.
+Each agent records its changes without knowledge of other agents.
+\end{definition}
+
+\begin{definition}[Agent]\label{def:agent}
+An agent is an entity that edits a file. Each agent has a unique positive integer ID.
+\end{definition}
+
+\subsection{The Base File}
+
+\begin{definition}[Base File]\label{def:base-file}
+The base file is the original file state before edits. It is a list of text lines.
+Example: \code{["name = Alice", "greeting = hello", "print greeting"]}.
+\end{definition}
+
+\begin{definition}[Line Number]\label{def:line-number}
+Line numbers are 1-indexed and half-open: range \code{[start, stop)} includes \code{start} and excludes \code{stop}.
+Example: \code{[2, 4]} covers lines 2 and 3.
+\end{definition}
+
+\subsection{Edits and Hunks}
+
+\begin{definition}[Edit]\label{def:edit}
+An edit is one of:
+\begin{itemize}
+  \item Insert: add lines at a position.
+  \item Delete: remove lines.
+  \item Replace: remove lines and add new ones.
+\end{itemize}
+\end{definition}
+
+\begin{definition}[Operation]\label{def:operation}
+An operation (\code{op}) is one of \code{insert}, \code{delete}, \code{replace}.
+\end{definition}
+
+\begin{definition}[Range]\label{def:range}
+A range \code{[start, stop)} identifies lines in the base file.
+\begin{itemize}
+  \item \code{start} included, \code{stop} excluded.
+  \item Width = \code{stop - start}.
+  \item For insert: \code{start = stop}.
+\end{itemize}
+Line numbers are 1-based.
+\end{definition}
+
+\begin{definition}[Before Lines]\label{def:before-lines}
+\code{before} holds the exact lines from the base file at \code{range}. For insert it is empty.
+\end{definition}
+
+\begin{definition}[After Lines]\label{def:after-lines}
+\code{after} holds the lines to insert. For delete it is empty.
+\end{definition}
+
+\begin{definition}[Hunk]\label{def:hunk}
+A hunk is one atomic edit. It contains \code{seq}, \code{op}, \code{range}, \code{before}, \code{after}.
+See Definitions~\ref{def:range}, \ref{def:operation}, \ref{def:before-lines}, \ref{def:after-lines}.
+\end{definition}
+
+\subsection{Metadata}
+
+\begin{definition}[Agent ID]\label{def:agent-id}
+Agent ID is a unique positive integer $\geq 1$. It appears at top level of every diff.
+\end{definition}
+
+\begin{definition}[Timestamp]\label{def:timestamp}
+Timestamp is an ISO 8601 date-time string.
+\end{definition}
+
+\begin{definition}[File Path]\label{def:file-path}
+File path is a non-empty string identifying the target file.
+\end{definition}
+
+\subsection{Diff}
+
+\begin{definition}[Base Line Count]\label{def:base-line-count}
+Base line count is the number of lines in the base file ($\geq 0$).
+\end{definition}
+
+\begin{definition}[Diff]\label{def:diff}
+A diff contains agent ID, file path, timestamp, base line count, and ordered list of hunks.
+\end{definition}
+
+\subsection{Constraints}
+
+\begin{definition}[Non-Overlap]\label{def:non-overlap}
+No two hunks in one diff may have overlapping ranges: \code{a < d \land c < b} for ranges \code{[a,b)}, \code{[c,d)}.
+\end{definition}
+
+\begin{definition}[Schema Validity]\label{def:schema-validity}
+A diff satisfies the JSON schema if all required fields, types, bounds, shapes, and non-overlap hold.
+\end{definition}
+
+\begin{definition}[Base Alignment]\label{def:base-alignment}
+A hunk is base-aligned when \code{before} matches the base file slice at its range.
+A diff is base-aligned when all hunks are aligned and \code{base_line_count} matches base length.
+\end{definition}

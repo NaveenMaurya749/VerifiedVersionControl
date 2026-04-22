@@ -1,0 +1,60 @@
+\section{Open Work}
+
+The current code checks structured diffs. It parses JSON, validates hunks,
+checks the base file, applies diffs, detects conflicts, models linear histories,
+and checks merges. The following work is still open.
+
+\subsection{Monadic Pipeline}
+
+Add a monadic version of the pipeline. It must run parsing, schema checks, base
+checks, conflict checks, and merge checks in one sequence. The current code
+exposes these steps as separate functions.
+
+\subsection{Invalid Input Flags}
+
+Add a result type for bad input from an agent. It must separate JSON parse
+errors, schema errors, and base-alignment errors. The current code returns
+\code{Except String}; callers still have to classify the failure.
+
+\subsection{Merge Conflict Flags}
+
+Add a result type for merge conflicts. The current code computes conflict
+witnesses with \code{conflictWitnesses} and returns them through
+\code{MergeResult.conflict}. Callers still have to present that result as a
+clear merge-conflict flag.
+
+\subsection{Agent Runner}
+
+There is no file that runs agents. A separate runner can call
+\code{parseDiff}, \code{Diff.checkSchema}, \code{Diff.checkAgainstBase},
+\code{nWayCompatible}, and \code{fullMerge}. The core definitions do not need
+to change for that runner.
+
+\subsection{Commit Graphs}
+
+\code{PushHistory} is a linear list of \code{PatchStep}s. It does not model
+branches or merge commits. A graph model needs a commit table, parent commit
+ids, and a nearest-common-ancestor function.
+
+\subsection{Merged Diff Metadata}
+
+\code{Diff} stores one \code{agent} and one \code{timestamp}. A clean merge may
+combine edits from multiple agents. A later version can add a field that lists
+all contributing agents and timestamps.
+
+\subsection{Timestamp Parser}
+
+Lean stores \code{timestamp} as \code{String}. A later version can add a
+\code{Timestamp} type and reject strings that are not valid ISO 8601
+date-times.
+
+\subsection{Sequence Numbers}
+
+\code{seq} is checked to be positive. It is not checked to be exactly
+\code{1, 2, ..., n}. A later schema check can add that rule.
+
+\subsection{File IO}
+
+The core code has no file-system dependency. A separate executable can read a
+file, collect diff JSON, validate it, and print either a merge result or
+conflict witnesses.

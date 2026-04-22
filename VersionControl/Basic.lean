@@ -19,12 +19,13 @@ inductive Timeline (σ : System) where
 | origin  : Timeline σ
 | agentic : Agent → Timeline σ
 
--- Changes to a filepath, currently only rewrite supported
-def Diff := File → Option Content
+-- Changes to a filepath, currently only rewrite supported.
+-- The structured JSON diff is defined later as `VersionControl.Diff`.
+abbrev FilePatch := File → Option Content
 
 structure Commit where
   (author : Agent)
-  (changes : Diff)
+  (changes : FilePatch)
   (commitMessage : String)
 
 -- ActionF is the fuctorial wrapper for actions 

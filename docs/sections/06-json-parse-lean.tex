@@ -1,0 +1,142 @@
+\section{JsonParse.lean}
+
+\code{JsonParse.lean} defines JSON entry points for the structured
+\code{Diff} type. The file does not define the JSON schema itself. The schema
+shape is implemented by the \code{FromJson Diff} and \code{ToJson Diff}
+instances from \code{Defns.lean}. This file gives those instances short,
+named wrappers.
+
+\subsection{Overall Structure}
+
+The file has three layers.
+
+\begin{enumerate}
+  \item Imports and namespace setup.
+  \item Three executable functions:
+    \code{parseDiffJson}, \code{parseDiff}, and \code{diffAsJson}.
+  \item Two definitional theorems describing exactly what the wrappers expand to.
+\end{enumerate}
+
+\subsection{Imports and Namespace}
+
+\begin{definition}[import VersionControl.Defns]
+\code{[import VersionControl.Defns]} imports \code{Diff}, \code{FromJson Diff},
+\code{ToJson Diff}, and the \code{VersionControl} namespace declarations needed
+by this file.
+\end{definition}
+
+\begin{definition}[open Lean]
+\code{[open Lean]} makes \code{Json}, \code{Json.parse}, \code{fromJson?}, and
+\code{toJson} available without writing the \code{Lean.} prefix.
+\end{definition}
+
+\begin{definition}[namespace VersionControl]
+\code{[namespace VersionControl]} places the parsing functions and theorems in
+the same namespace as \code{Diff}. The full names are
+\code{VersionControl.parseDiffJson}, \code{VersionControl.parseDiff}, and
+\code{VersionControl.diffAsJson}.
+\end{definition}
+
+\subsection{JSON and Except}
+
+\begin{definition}[Json]
+\code{[Json]} is Lean's datatype for already-parsed JSON values. A value of
+type \code{Json} is not raw text. It is a structured JSON tree.
+\end{definition}
+
+\begin{definition}[Json.parse]
+\code{[Json.parse]} has type \code{String -> Except String Json}. It reads raw
+JSON text. If the text is syntactically invalid JSON, it returns
+\code{Except.error message}. If the text is syntactically valid JSON, it returns
+\code{Except.ok json}.
+\end{definition}
+
+\begin{definition}[Except String alpha]
+\code{[Except String alpha]} is a result type with two cases:
+\code{Except.ok value} for success and \code{Except.error message} for failure.
+In this file, parsing functions use \code{Except String} so syntax errors and
+schema-conversion errors can carry an error message.
+\end{definition}
+
+\begin{definition}[do notation]
+\code{[do]} notation sequences computations that can fail. In
+\code{parseDiff}, the line \code{let json <- Json.parse text} means: parse the
+raw text; if parsing fails, return that error immediately; if parsing succeeds,
+bind the parsed JSON value to \code{json} and continue.
+\end{definition}
+
+\subsection{Functions}
+
+\begin{definition}[parseDiffJson]
+\code{[parseDiffJson]} has type \code{Json -> Except String Diff}. It converts
+an already-parsed JSON value into a \code{Diff}. It is exactly
+\code{fromJson? json} specialized to \code{Diff}.
+\end{definition}
+
+\begin{definition}[fromJson?]
+\code{[fromJson?]} is the generic Lean JSON conversion function. In this file,
+\code{fromJson? json} uses the \code{FromJson Diff} instance defined in
+\code{Defns.lean}, because the expected result type is \code{Diff}.
+\end{definition}
+
+\begin{definition}[parseDiff]
+\code{[parseDiff]} has type \code{String -> Except String Diff}. It is the main
+entry point for raw JSON text. It first calls \code{Json.parse}; then it calls
+\code{parseDiffJson} on the parsed JSON value.
+\end{definition}
+
+\begin{definition}[diffAsJson]
+\code{[diffAsJson]} has type \code{Diff -> Json}. It serializes a \code{Diff}
+to a JSON value by calling \code{toJson diff}.
+\end{definition}
+
+\begin{definition}[toJson]
+\code{[toJson]} is the generic Lean JSON serialization function. In this file,
+\code{toJson diff} uses the \code{ToJson Diff} instance defined in
+\code{Defns.lean}, because the input value has type \code{Diff}.
+\end{definition}
+
+\subsection{Parsing Pipeline}
+
+The raw-text parsing pipeline is:
+
+\begin{enumerate}
+  \item Input: \code{text : String}.
+  \item \code{Json.parse text} checks JSON syntax.
+  \item If JSON syntax fails, \code{parseDiff text} returns the syntax error.
+  \item If JSON syntax succeeds, Lean has \code{json : Json}.
+  \item \code{parseDiffJson json} checks whether the JSON has the fields and
+    types required by \code{Diff}.
+  \item If conversion fails, \code{parseDiff text} returns the conversion error.
+  \item If conversion succeeds, \code{parseDiff text} returns
+    \code{Except.ok diff}.
+\end{enumerate}
+
+This file does not call \code{Diff.checkSchema}. Therefore
+\code{parseDiff text = Except.ok diff} means the JSON was converted into a
+\code{Diff} value. To check hunk shape and pairwise non-overlap, call
+\code{diff.checkSchema} after parsing.
+
+\subsection{Theorems}
+
+\begin{theorem}[parseDiff\_eq\_parseDiffJson]
+\code{[parseDiff_eq_parseDiffJson]} states that \code{parseDiff text} is exactly
+the two-step computation that first runs \code{Json.parse text} and then runs
+\code{parseDiffJson json}.
+\end{theorem}
+
+\begin{theorem}[parseDiffJson\_eq\_fromJson]
+\code{[parseDiffJson_eq_fromJson]} states that \code{parseDiffJson json} is
+definitionally equal to \code{fromJson? json} specialized to
+\code{Except String Diff}.
+\end{theorem}
+
+\subsection{Downstream Use}
+
+\code{JsonParse.lean} feeds into \code{Semantics.lean}. After JSON has been parsed
+into a \code{Diff}, the next operation is applying that \code{Diff} to a
+\code{BaseFile}, which is described in \code{Semantics.lean}.
+
+\subsection{Integration Note}
+
+The repository build checks this file through \code{VersionControl.lean}.

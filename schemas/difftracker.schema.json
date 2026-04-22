@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/schemas/difftracker-v1.json",
+  "title": "DiffTracker",
+  "description": "A diff is one agent's set of edits to one file. It is a list of hunks. Each hunk says: which lines to target, what those lines currently say (before), and what to replace them with (after).",
+  "type": "object",
+  "required": ["agent", "file", "timestamp", "base_line_count", "diffs"],
+  "additionalProperties": false,
+  "properties": {
+    "agent": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Which agent produced this diff. Must be 1 or higher. The current Lean model requires only that it is positive; uniqueness between agents is a project-level convention, not a schema-enforced rule."
+    },
+    "file": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The path to the file being edited. Must not be empty. Example: 'hello.py' or 'src/main.lean'."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this diff was produced. Intended format: ISO 8601 date-time, for example '2026-04-21T10:00:00Z'. This field is required. The Lean side currently treats it as a required string and does not enforce the date-time syntax by itself."
+    },
+    "base_line_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "How many lines the original file had before any edits. This field is required. The Lean application path uses it when a concrete base file is supplied, but JSON Schema alone cannot compare it against file contents."
+    },
+    "diffs": {
+      "type": "array",
+      "description": "The list of individual edits (called hunks). Each hunk targets a different part of the file. Across the whole diff, hunks must stay pairwise separated, and same-position inserts with different text are rejected by the Lean validator.",
+      "items": { "$ref": "#/$defs/hunk" }
+    }
+  },
+  "$defs": {
+    "hunk": {
+      "type": "object",
+      "required": ["seq", "op", "range", "before", "after"],
+      "additionalProperties": false,
+      "description": "One edit operation: the target range, the old lines to match, and the new lines to write.",
+      "properties": {
+        "seq": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The sequence number of this hunk within the diff. Starts at 1. Used for traceability and error messages. Lean execution order is determined by range sorting, not by seq."
+        },
+        "op": {
+          "enum": ["insert", "delete", "replace"],
+          "description": "The kind of edit. 'insert' adds new lines without removing any. 'delete' removes lines without adding any. 'replace' removes old lines and puts new lines in their place."
+        },
+        "range": {
+          "type": "array",
+          "description": "Which lines of the ORIGINAL file this hunk targets. Written as [start, stop]. Line numbers are 1-indexed. The interval is half-open: start is included, stop is excluded. So [2, 4] means lines 2 and 3. For an insert, start equals stop (e.g. [5, 5]) meaning 'insert before line 5'.",
+          "items": { "type": "integer", "minimum": 1 },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "before": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "The exact lines from the original file that this hunk targets. These must match the actual file contents — if they do not match, the diff is rejected (this prevents editing the wrong place). For 'insert' this must be empty [] because no lines are being removed."
+        },
+        "after": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "The new lines to put in place of the 'before' lines. For 'delete' this must be empty [] because nothing is being added."
+        }
+      },
+      "allOf": [
+        {
+          "description": "Rule: range[0] must be <= range[1]. This is enforced by the application layer, not JSON Schema."
+        },
+        {
+          "if": { "properties": { "op": { "const": "insert" } } },
+          "then": {
+            "description": "INSERT rule: before must be empty (nothing removed), after must have at least one line (something added).",
+            "properties": {
+              "before": { "type": "array", "maxItems": 0 },
+              "after":  { "type": "array", "minItems": 1 }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "op": { "const": "delete" } } },
+          "then": {
+            "description": "DELETE rule: before must have at least one line (the lines being removed), after must be empty (nothing added).",
+            "properties": {
+              "before": { "type": "array", "minItems": 1 },
+              "after":  { "type": "array", "maxItems": 0 }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "op": { "const": "replace" } } },
+          "then": {
+            "description": "REPLACE rule: before must have at least one line (what is being removed), after must have at least one line (what is being added).",
+            "properties": {
+              "before": { "type": "array", "minItems": 1 },
+              "after":  { "type": "array", "minItems": 1 }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

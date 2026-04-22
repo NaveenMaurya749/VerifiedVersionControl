@@ -1,0 +1,152 @@
+\section{History.lean}
+
+\code{History.lean} defines linear patch histories. A history is a list of
+steps, where each step has a base commit id, a new commit id, and a structured
+\code{Diff}. The file also defines shared-prefix splitting for two histories.
+
+\subsection{Imports and Namespace}
+
+This module depends on \code{Defns.lean} for \code{Diff} and
+\code{Diff.metadataWellFormed}, and it stays in the shared
+\code{VersionControl} namespace.
+
+\subsection{Commit Ids and Patch Steps}
+
+\begin{definition}[CommitId]
+\code{[CommitId]} is an abbreviation for \code{String}. A commit id is just a
+short string name such as \code{init}, \code{a1}, or \code{left1}.
+\end{definition}
+
+\begin{definition}[PatchStep]
+\code{[PatchStep]} is a structure with fields \code{baseCommit},
+\code{newCommit}, and \code{diff}. It represents one linear step from one
+commit id to the next.
+\end{definition}
+
+\begin{definition}[PushHistory]
+\code{[PushHistory]} is an abbreviation for \code{List PatchStep}. It
+represents a linear sequence of patch steps.
+\end{definition}
+
+\begin{definition}[PatchStep.wellFormed]
+\code{[PatchStep.wellFormed]} states that both commit ids are nonempty and that
+the diff metadata is well formed.
+\end{definition}
+
+\subsection{Commit Paths and Distinctness}
+
+\begin{definition}[commitPath]
+\code{[commitPath]} converts a history into the sequence of commit ids it
+visits. For \code{[init -> a1, a1 -> a2]}, the commit path is
+\code{[init, a1, a2]}.
+\end{definition}
+
+\begin{definition}[distinctCommitIds]
+\code{[distinctCommitIds]} states that the commit path has no duplicate commit
+ids.
+\end{definition}
+
+\subsection{History Validity}
+
+\begin{definition}[validHistory]
+\code{[validHistory]} has type \code{PushHistory -> Prop}. A valid history must:
+
+\begin{enumerate}
+  \item use nonempty commit ids,
+  \item chain adjacent steps correctly,
+  \item keep all steps on the same file, and
+  \item keep commit ids distinct across the whole linear history.
+\end{enumerate}
+
+This means histories with repeated commit ids are rejected rather than treated
+as ambiguous ancestry.
+\end{definition}
+
+\subsection{Shared Prefix Logic}
+
+\begin{definition}[commonPrefix]
+\code{[commonPrefix]} returns the longest shared prefix of two lists.
+\end{definition}
+
+\begin{definition}[sharedCommitPath]
+\code{[sharedCommitPath]} applies \code{commonPrefix} to the two histories'
+\code{commitPath} values.
+\end{definition}
+
+\begin{definition}[sharedStepCount]
+\code{[sharedStepCount]} returns the number of shared patch steps, computed from
+the shared commit path length.
+\end{definition}
+
+\begin{definition}[CommonParentSplit]
+\code{[CommonParentSplit]} packages the shared commit ids, the nearest common
+ancestor commit id, and the left and right residual histories.
+\end{definition}
+
+\begin{definition}[splitAtNearestCommonParent?]
+\code{[splitAtNearestCommonParent?]} computes the shared commit path. If there
+is no shared commit id, it returns \code{none}. Otherwise it returns the nearest
+common ancestor plus the residual histories obtained by dropping the shared
+steps.
+\end{definition}
+
+\subsection{Theorems}
+
+\begin{theorem}[commitPath\_nil]
+\code{[commitPath_nil]} states that the commit path of the empty history is
+\code{[]}.
+\end{theorem}
+
+\begin{theorem}[commitPath\_singleton]
+\code{[commitPath_singleton]} states that the commit path of \code{[step]} is
+\code{[step.baseCommit, step.newCommit]}.
+\end{theorem}
+
+\begin{theorem}[validHistory\_distinctCommitIds]
+\code{[validHistory_distinctCommitIds]} states that every valid history has a
+duplicate-free commit path.
+\end{theorem}
+
+\begin{theorem}[empty shared path gives no split]
+If the shared commit path is empty, then there is no common-parent split.
+\end{theorem}
+
+\begin{theorem}[split\_eq\_some\_of\_sharedCommitPath]
+\code{[split_eq_some_of_sharedCommitPath]} states the exact split returned when
+the shared commit path is nonempty.
+\end{theorem}
+
+\begin{theorem}[validHistory\_tail]
+\code{[validHistory_tail]} states that the tail of a valid nonempty history is
+also valid.
+\end{theorem}
+
+\begin{theorem}[validHistory\_drop]
+\code{[validHistory_drop]} states that dropping any number of steps from a valid
+history leaves a valid history.
+\end{theorem}
+
+\begin{theorem}[validHistory\_leftResidual]
+\code{[validHistory_leftResidual]} states that the left residual returned by a
+valid split is valid.
+\end{theorem}
+
+\begin{theorem}[validHistory\_rightResidual]
+\code{[validHistory_rightResidual]} states that the right residual returned by a
+valid split is valid.
+\end{theorem}
+
+\subsection{Execution Pipeline}
+
+The history pipeline is:
+
+\begin{enumerate}
+  \item represent a linear history as \code{PushHistory},
+  \item check chaining, file consistency, and distinct commit ids with
+    \code{validHistory},
+  \item convert each history to a commit-id path with \code{commitPath},
+  \item find the shared commit-id prefix with \code{sharedCommitPath},
+  \item split at the nearest common ancestor with
+    \code{splitAtNearestCommonParent?},
+  \item pass the residual histories to \code{FullMerge.lean}.
+\end{enumerate}

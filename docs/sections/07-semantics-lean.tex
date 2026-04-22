@@ -1,0 +1,153 @@
+\section{Semantics.lean}
+
+\code{Semantics.lean} defines how a structured \code{Diff} is applied to a
+\code{BaseFile}. It also defines inversion functions for producing the
+syntactic undo of an operation, hunk, or diff.
+
+\subsection{Imports and Namespace}
+
+This module depends on \code{Defns.lean} for the structured diff types and
+helper functions, and all declarations remain in the
+\code{VersionControl} namespace.
+
+\subsection{Base Checking}
+
+\begin{definition}[namespace Diff]
+\code{[namespace Diff]} places \code{checkAgainstBase} inside the
+\code{Diff} namespace. Its full name is
+\code{VersionControl.Diff.checkAgainstBase}.
+\end{definition}
+
+\begin{definition}[Diff.checkAgainstBase]
+\code{[Diff.checkAgainstBase]} has type
+\code{Diff -> BaseFile -> Except String Unit}. It first runs
+\code{diff.checkSchema}. Then it checks that
+\code{diff.base_line_count = base.length}. It also checks that each hunk's
+\code{before} field equals \code{slice base hunk.range}. If all checks pass,
+it returns \code{Except.ok ()}. Otherwise it returns an error message.
+\end{definition}
+
+\subsection{Unchanged Lines}
+
+\begin{definition}[unchangedSegment]
+\code{[unchangedSegment]} has type
+\code{BaseFile -> Nat -> Nat -> List String}. It returns the unchanged lines
+from \code{cursor} inclusive to \code{nextStart} exclusive. It computes this by
+dropping \code{cursor - 1} lines and taking \code{nextStart - cursor} lines.
+\end{definition}
+
+\subsection{Applying Hunks}
+
+\begin{definition}[applyOrderedHunks]
+\code{[applyOrderedHunks]} has type
+\code{BaseFile -> Nat -> List Hunk -> Except String BaseFile}. It applies a
+list of hunks to a base file, assuming the hunks are already ordered from left
+to right by range.
+\end{definition}
+
+\begin{definition}[applyOrderedHunks empty case]
+The empty-list case of \code{[applyOrderedHunks]} returns
+\code{base.drop (cursor - 1)}. This copies the remaining suffix of the original
+file after all hunks have been processed.
+\end{definition}
+
+\begin{definition}[applyOrderedHunks hunk case]
+The nonempty-list case of \code{[applyOrderedHunks]} processes
+\code{hunk :: rest}. It checks four conditions before producing output:
+\code{hunk.range.wellFormed base.length}, \code{hunk.range.start >= cursor},
+\code{hunk.before = slice base hunk.range}, and \code{hunk.opMatchesShape}.
+If any check fails, it returns \code{Except.error}. If all checks pass, it
+recursively applies the remaining hunks from cursor \code{hunk.range.stop} and
+returns
+\code{unchangedSegment base cursor hunk.range.start ++ hunk.after ++ tail}.
+\end{definition}
+
+\begin{definition}[applyHunk]
+\code{[applyHunk]} has type \code{Hunk -> BaseFile -> Except String BaseFile}.
+It applies one hunk by calling \code{applyOrderedHunks base 1 [hunk]}.
+\end{definition}
+
+\begin{definition}[applyDiff]
+\code{[applyDiff]} has type \code{Diff -> BaseFile -> Except String BaseFile}.
+It first calls \code{diff.checkAgainstBase base}. Then it calls
+\code{applyOrderedHunks base 1 diff.sortedHunks}. Therefore schema validation,
+base line-count validation, hunk sorting, hunk alignment, and hunk application
+are all part of the main diff-application path.
+\end{definition}
+
+\subsection{Apply Theorems}
+
+\begin{theorem}[applyDiff\_empty]
+\code{[applyDiff_empty]} states that applying a valid empty diff to any base
+file returns \code{Except.ok base}. The theorem requires the file name to be
+nonempty.
+\end{theorem}
+
+\begin{theorem}[applyHunk\_insert\_at\_start]
+\code{[applyHunk_insert_at_start]} states that applying an insert hunk with
+range \code{\{ start := 1, stop := 1 \}}, empty \code{before}, and
+\code{after := [line]} returns \code{Except.ok (line :: base)}.
+\end{theorem}
+
+\subsection{Inversion}
+
+\begin{definition}[invertOp]
+\code{[invertOp]} has type \code{Op -> Op}. It maps \code{insert} to
+\code{delete}, maps \code{delete} to \code{insert}, and maps \code{replace} to
+\code{replace}.
+\end{definition}
+
+\begin{definition}[invertHunk]
+\code{[invertHunk]} has type \code{Hunk -> Hunk}. It swaps the \code{before}
+and \code{after} lists and replaces \code{op} with \code{invertOp h.op}. The
+range and sequence number are unchanged.
+\end{definition}
+
+\begin{definition}[hunkLineDelta]
+\code{[hunkLineDelta]} computes how many lines a hunk adds or removes:
+\code{after.length - before.length}.
+\end{definition}
+
+\begin{definition}[inverseRangeOnPatched]
+\code{[inverseRangeOnPatched]} computes the inverse hunk range in the
+coordinate space of the patched file rather than the original base file.
+\end{definition}
+
+\begin{definition}[invertOrderedHunks]
+\code{[invertOrderedHunks]} walks sorted hunks left to right, tracks the net
+line offset introduced by earlier hunks, and builds inverse hunks using patched
+coordinates.
+\end{definition}
+
+\begin{definition}[resultLineCount]
+\code{[resultLineCount]} computes the patched-file line count that becomes the
+\code{base\_line\_count} of the inverse diff.
+\end{definition}
+
+\begin{definition}[invertDiff]
+\code{[invertDiff]} has type \code{Diff -> Diff}. It builds inverse hunks in
+patched-file coordinates, updates \code{base\_line\_count} to the patched-file
+length, and stores the inverse hunks in sorted application order.
+\end{definition}
+
+\begin{theorem}[invertHunk\_involution]
+\code{[invertHunk_involution]} states that applying \code{invertHunk} twice
+returns the original hunk: \code{invertHunk (invertHunk h) = h}.
+\end{theorem}
+
+\subsection{Execution Pipeline}
+
+The main execution path is:
+
+\begin{enumerate}
+  \item \code{parseDiff} in \code{JsonParse.lean} converts JSON text into a
+    \code{Diff}.
+  \item \code{Diff.checkSchema} in \code{Defns.lean} checks schema-level hunk
+    validity.
+  \item \code{Diff.checkAgainstBase} in \code{Semantics.lean} checks that the
+    supplied base file has the declared line count and that each hunk's
+    \code{before} lines match the base file.
+  \item \code{applyDiff} sorts hunks with \code{Diff.sortedHunks}.
+  \item \code{applyOrderedHunks} validates hunk alignment against the actual
+    base file and builds the output file.
+\end{enumerate}

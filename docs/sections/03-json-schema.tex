@@ -1,0 +1,133 @@
+\section{JSON Schema}
+
+Source: \code{schemas/difftracker.schema.json}.
+
+Lean mirror: \code{Defns.lean} (structured diff types), \code{JsonParse.lean} (parser). Lean declarations use the \code{VersionControl} namespace.
+
+The schema defines the wire format for one \code{Diff} (Definition~\ref{def:diff}). Commit ancestry is stored separately.
+
+All terms are defined in Section 1. This section maps schema keywords to constraints.
+
+\subsection{Top-Level Object}
+
+The top-level object must contain exactly these fields (\code{"required"} and \code{"additionalProperties": false}):
+
+\begin{itemize}
+  \item \code{agent}: \code{integer}, \code{minimum: 1}.
+  \item \code{file}: \code{string}, \code{minLength: 1}.
+  \item \code{timestamp}: \code{string} with \code{format: date-time}.
+  \item \code{base_line_count}: \code{integer}, \code{minimum: 0}.
+  \item \code{diffs}: \code{array} of objects matching \code{"\#/\$defs/hunk"}.
+\end{itemize}
+
+\subsection{Hunk Object}
+
+Each element of \code{diffs} is a hunk (\code{"\$ref": "\#/\$defs/hunk"}). It must contain exactly these fields (\code{"required"} and \code{"additionalProperties": false}):
+
+\begin{itemize}
+  \item \code{seq}: \code{integer}, \code{minimum: 1}.
+  \item \code{op}: one of \code{"insert"}, \code{"delete"}, \code{"replace"} (\code{"enum"}).
+  \item \code{range}: array of exactly two integers $\geq 1$ (\code{minItems: 2}, \code{maxItems: 2}, \code{items: \{type: integer, minimum: 1\}}).
+  \item \code{before}: array of strings.
+  \item \code{after}: array of strings.
+\end{itemize}
+
+The \code{allOf} array with \code{if}/\code{then} clauses enforces operation shapes:
+\begin{itemize}
+  \item \code{insert}: \code{before} empty, \code{after} non-empty.
+  \item \code{delete}: \code{before} non-empty, \code{after} empty.
+  \item \code{replace}: both \code{before} and \code{after} non-empty.
+\end{itemize}
+
+\subsection{Range Semantics}
+
+\code{range} is a half-open interval \code{[start, stop)} with 1-based indexing.
+
+\begin{itemize}
+  \item \code{start} is included, \code{stop} is excluded.
+  \item Width = \code{stop - start}.
+  \item \code{start = stop} denotes an insert position.
+  \item Valid for base file of \code{N} lines: \code{1 <= start <= stop <= N+1}.
+\end{itemize}
+
+Examples:
+\begin{itemize}
+  \item \code{[2,4]} affects lines 2 and 3.
+  \item \code{[1,1]} inserts before line 1.
+  \item \code{[N+1,N+1]} appends to end of file.
+\end{itemize}
+
+\subsection{Lean Constraints}
+
+The schema enforces structure. Lean enforces additional invariants in \code{Diff.checkSchema} and \code{Hunk.checkSchema}:
+
+\begin{itemize}
+  \item \code{agent >= 1} and \code{file != ""}.
+  \item No two hunks overlap within one diff, and no two inserts share the same position within one diff.
+  \item \code{stop <= base_line_count + 1}.
+  \item For \code{delete} and \code{replace}: \code{before.length = stop - start}.
+  \item \code{start <= stop}.
+\end{itemize}
+
+\subsection{Schema vs Lean Boundary}
+
+\begin{itemize}
+  \item Schema: rejects unknown fields (\code{additionalProperties: false}), enforces types, \code{enum}, array lengths, basic shapes via \code{allOf/if/then}.
+  \item Lean: stores \code{timestamp} as \code{String}, requires the five top-level fields when parsing, and validates inter-field relations and non-overlap.
+\end{itemize}
+
+JSON Schema defines the wire format. Lean defines semantic validity.
+
+\subsection{Base Alignment}
+
+\code{Diff.checkAgainstBase} and \code{Hunk.baseAligned} verify:
+
+\begin{itemize}
+  \item \code{before} exactly matches \code{slice(base, range)}.
+  \item \code{base_line_count = base.length}.
+\end{itemize}
+
+These checks occur before \code{applyDiff}.
+
+\subsection{Example}
+
+Base file:
+\begin{verbatim}
+name = Alice
+greeting = hello
+print greeting
+\end{verbatim}
+
+Diff:
+\begin{lstlisting}[style=jsonstyle]
+{
+  "agent": 1,
+  "file": "hello.py",
+  "timestamp": "2026-04-21T10:00:00Z",
+  "base_line_count": 3,
+  "diffs": [
+    {
+      "seq": 1,
+      "op": "insert",
+      "range": [1, 1],
+      "before": [],
+      "after": ["# my script"]
+    },
+    {
+      "seq": 2,
+      "op": "replace",
+      "range": [2, 3],
+      "before": ["greeting = hello"],
+      "after": ["greeting = hello world"]
+    }
+  ]
+}
+\end{lstlisting}
+
+Result after apply:
+\begin{verbatim}
+# my script
+name = Alice
+greeting = hello world
+print greeting
+\end{verbatim}

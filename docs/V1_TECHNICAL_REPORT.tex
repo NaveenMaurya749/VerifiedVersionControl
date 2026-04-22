@@ -1,0 +1,64 @@
+\documentclass[10pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{hyperref}
+\usepackage{amsthm}
+\usepackage{xcolor}
+\usepackage{listings}
+
+\setlength{\emergencystretch}{12em}
+\hbadness=10000
+\hfuzz=100pt
+\sloppy
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!45!black,
+  urlcolor=blue!45!black
+}
+
+\DeclareRobustCommand{\code}[1]{\texttt{\detokenize{#1}}}
+
+\providecommand{\llbracket}{[\![}
+\providecommand{\rrbracket}{]\!]}
+
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[section]
+\newtheorem{theorem}{Theorem}[section]
+
+\lstdefinestyle{jsonstyle}{
+  basicstyle=\ttfamily\small,
+  frame=single,
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  tabsize=2,
+  numbers=left,
+  numberstyle=\tiny\color{gray}
+}
+
+\title{DiffTracker VersionControl Documentation}
+\author{}
+\date{April 23, 2026}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\input{sections/01-definitions.tex}
+\input{sections/02-reading-order.tex}
+\input{sections/03-json-schema.tex}
+\input{sections/04-basic-lean.tex}
+\input{sections/05-defns-lean.tex}
+\input{sections/06-json-parse-lean.tex}
+\input{sections/07-semantics-lean.tex}
+\input{sections/08-conflict-lean.tex}
+\input{sections/09-history-lean.tex}
+\input{sections/10-full-merge-lean.tex}
+\input{sections/11-roadmap.tex}
+
+\end{document}

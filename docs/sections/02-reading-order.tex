@@ -1,0 +1,25 @@
+\section{Reading Order}
+
+Read the files in this order.
+
+\begin{enumerate}
+  \item \code{Basic.lean}
+  \item \code{Defns.lean}
+  \item \code{JsonParse.lean}
+  \item \code{Semantics.lean}
+  \item \code{Conflict.lean}
+  \item \code{History.lean}
+  \item \code{FullMerge.lean}
+\end{enumerate}
+
+Dependency notes:
+
+\begin{itemize}
+  \item \code{Defns.lean} needs \code{Basic.lean}.
+  \item \code{JsonParse.lean}, \code{Semantics.lean}, and
+    \code{Conflict.lean} need \code{Defns.lean}.
+  \item \code{FullMerge.lean} needs \code{Semantics.lean},
+    \code{Conflict.lean}, and \code{History.lean}.
+\end{itemize}
+
+Section 11 lists work that is not part of this version.

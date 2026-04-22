@@ -1,0 +1,248 @@
+\section{Defns.lean}
+
+\code{Defns.lean} defines the structured diff layer. This file matches the JSON
+schema: a file is represented as lines, one edit is represented as a hunk, and
+one agent's edits to one file are represented as a structured \code{Diff}.
+
+\subsection{Imports}
+
+\begin{definition}[import Mathlib.Tactic]
+\code{[import Mathlib.Tactic]} imports proof tactics used in this file,
+including \code{aesop} and \code{omega}.
+\end{definition}
+
+\begin{definition}[import Lean.Data.Json.Basic]
+\code{[import Lean.Data.Json.Basic]} imports Lean's \code{Json} datatype.
+\end{definition}
+
+\begin{definition}[Lean JSON FromToJson import]
+\code{[import Lean.Data.Json.FromToJson.Basic]} imports \code{FromJson},
+\code{ToJson}, \code{fromJson?}, and \code{toJson}.
+\end{definition}
+
+\begin{definition}[import Init.Data.List.Sort.Basic]
+\code{[import Init.Data.List.Sort.Basic]} imports \code{List.mergeSort}, used
+by \code{Diff.sortedHunks}.
+\end{definition}
+
+\begin{definition}[import VersionControl.Basic]
+\code{[import VersionControl.Basic]} imports the repository-level primitives
+\code{Agent} and \code{File}.
+\end{definition}
+
+\begin{definition}[open Lean]
+\code{[open Lean]} makes \code{Json}, \code{fromJson?}, and \code{toJson}
+available without the \code{Lean.} prefix.
+\end{definition}
+
+\subsection{File Lines and Operations}
+
+\begin{definition}[BaseFile]
+\code{[BaseFile]} is an abbreviation for \code{List String}. It represents a
+file as a list of lines.
+\end{definition}
+
+\begin{definition}[Op]
+\code{[Op]} is an inductive type with constructors \code{insert},
+\code{delete}, and \code{replace}.
+\end{definition}
+
+\begin{definition}[deriving]
+\code{[deriving]} asks Lean to generate standard instances. In this file,
+\code{Repr} supports printing, \code{DecidableEq} supports decidable equality,
+\code{Inhabited} gives a default value, \code{BEq} gives boolean equality,
+\code{FromJson} parses JSON, and \code{ToJson} serializes JSON.
+\end{definition}
+
+\subsection{Range}
+
+\begin{definition}[Range]
+\code{[Range]} is a structure with fields \code{start : Nat} and
+\code{stop : Nat}. It represents the half-open, 1-indexed interval
+\code{[start, stop)} in the original file.
+\end{definition}
+
+\begin{definition}[Range.width]
+\code{[Range.width]} returns \code{r.stop - r.start}.
+\end{definition}
+
+\begin{definition}[Range.isInsert]
+\code{[Range.isInsert]} states \code{r.start = r.stop}. This marks an insert
+point.
+\end{definition}
+
+\begin{definition}[Range.wellFormed]
+\code{[Range.wellFormed]} states that \code{1 <= r.start},
+\code{r.start <= r.stop}, and \code{r.stop <= baseLineCount + 1}.
+\end{definition}
+
+\begin{definition}[Range.overlaps]
+\code{[Range.overlaps]} states that two half-open ranges share at least one
+targeted original line.
+\end{definition}
+
+\begin{definition}[Range.pointInsertCollision]
+\code{[Range.pointInsertCollision]} states that two ranges are both insert
+points at the same line.
+\end{definition}
+
+\begin{theorem}[Range.overlaps\_comm]
+\code{[Range.overlaps_comm]} states
+\code{left.overlaps right <-> right.overlaps left}.
+\end{theorem}
+
+\begin{theorem}[Range.width\_eq\_zero\_of\_isInsert]
+\code{[Range.width_eq_zero_of_isInsert]} states that an insert range has width
+zero.
+\end{theorem}
+
+\begin{theorem}[Range.isInsert\_iff\_width\_eq\_zero]
+\code{[Range.isInsert_iff_width_eq_zero]} states that, when
+\code{r.start <= r.stop}, \code{r.isInsert} is equivalent to
+\code{r.width = 0}.
+\end{theorem}
+
+\begin{definition}[Decidable Range.wellFormed]
+\code{[Decidable Range.wellFormed]} lets Lean compute whether a range is valid
+for a declared base line count.
+\end{definition}
+
+\begin{definition}[FromJson Range]
+\code{[FromJson Range]} parses a range from a two-element JSON array
+\code{[start, stop]}.
+\end{definition}
+
+\begin{definition}[ToJson Range]
+\code{[ToJson Range]} serializes a range as \code{[start, stop]}.
+\end{definition}
+
+\subsection{Slicing}
+
+\begin{definition}[slice]
+\code{[slice]} returns the lines of a \code{BaseFile} covered by a
+\code{Range}. It drops \code{range.start - 1} lines and takes
+\code{range.width} lines.
+\end{definition}
+
+\begin{theorem}[slice\_of\_insert]
+\code{[slice_of_insert]} states that slicing an insert range returns
+\code{[]}.
+\end{theorem}
+
+\subsection{Hunk}
+
+\begin{definition}[Hunk]
+\code{[Hunk]} is a structure with fields \code{seq}, \code{op}, \code{range},
+\code{before}, and \code{after}. It represents one edit operation.
+\end{definition}
+
+\begin{definition}[Hunk.opMatchesShape]
+\code{[Hunk.opMatchesShape]} states the operation-specific shape rule. Insert
+requires empty \code{before} and nonempty \code{after}. Delete requires a
+positive-width range, matching \code{before.length}, and empty \code{after}.
+Replace requires a positive-width range, matching \code{before.length}, and
+nonempty \code{after}.
+\end{definition}
+
+\begin{definition}[Hunk.baseAligned]
+\code{[Hunk.baseAligned]} states \code{h.before = slice base h.range}.
+\end{definition}
+
+\begin{definition}[Hunk.schemaWellFormed]
+\code{[Hunk.schemaWellFormed]} checks hunk validity using only
+\code{baseLineCount}. It checks sequence number, range bounds, and operation
+shape.
+\end{definition}
+
+\begin{definition}[Hunk.wellFormed]
+\code{[Hunk.wellFormed]} checks hunk validity against an actual
+\code{BaseFile}. It adds the exact \code{before}-line alignment check.
+\end{definition}
+
+\begin{definition}[Hunk.compareByRange]
+\code{[Hunk.compareByRange]} orders hunks by range start and then range stop.
+\end{definition}
+
+\begin{definition}[Decidable Hunk.opMatchesShape]
+\code{[Decidable Hunk.opMatchesShape]} lets Lean compute the hunk shape rule.
+\end{definition}
+
+\begin{definition}[Hunk.checkSchema]
+\code{[Hunk.checkSchema]} executes hunk validation and returns
+\code{Except String Unit}.
+\end{definition}
+
+\begin{theorem}[Hunk.opMatchesShape\_insert]
+\code{[Hunk.opMatchesShape_insert]} states that an insert hunk with empty
+\code{before} and nonempty \code{after} satisfies \code{opMatchesShape}
+exactly when its range is an insert range.
+\end{theorem}
+
+\subsection{Diff}
+
+\begin{definition}[Diff]
+\code{[Diff]} is a structure with fields \code{agent : Agent},
+\code{file : File}, \code{timestamp : String}, \code{base_line_count : Nat},
+and \code{diffs : List Hunk}. It represents one agent's edits to one file.
+\end{definition}
+
+\begin{definition}[FromJson Diff]
+\code{[FromJson Diff]} parses the required JSON fields \code{agent},
+\code{file}, \code{timestamp}, \code{base_line_count}, and \code{diffs}.
+\end{definition}
+
+\begin{definition}[ToJson Diff]
+\code{[ToJson Diff]} serializes a \code{Diff} to a JSON object with the same
+five fields.
+\end{definition}
+
+\begin{definition}[Diff.metadataWellFormed]
+\code{[Diff.metadataWellFormed]} states \code{diff.agent >= 1} and
+\code{diff.file <> ""}.
+\end{definition}
+
+\begin{definition}[Diff.sortedHunks]
+\code{[Diff.sortedHunks]} returns \code{diff.diffs} sorted by
+\code{Hunk.compareByRange}.
+\end{definition}
+
+\begin{definition}[Diff.pairwiseSeparated]
+\code{[Diff.pairwiseSeparated]} states that no two hunks overlap and no two
+insert hunks collide at the same insertion point.
+\end{definition}
+
+\begin{definition}[Decidable Diff.pairwiseSeparated]
+\code{[Decidable Diff.pairwiseSeparated]} supplies the decision procedures used
+to compute hunk separation.
+\end{definition}
+
+\begin{definition}[Diff.schemaWellFormed]
+\code{[Diff.schemaWellFormed]} states full schema validity without an actual
+base file. It checks metadata, sorted hunk separation, and
+\code{Hunk.schemaWellFormed} for every hunk.
+\end{definition}
+
+\begin{definition}[Diff.wellFormed]
+\code{[Diff.wellFormed]} states full validity against an actual \code{BaseFile}.
+It checks metadata, base line count equality, hunk separation, and
+\code{Hunk.wellFormed} for every hunk.
+\end{definition}
+
+\begin{definition}[Diff.checkSchema]
+\code{[Diff.checkSchema]} executes diff schema validation and returns
+\code{Except String Unit}.
+\end{definition}
+
+\begin{theorem}[Diff.sortedHunks\_nil]
+\code{[Diff.sortedHunks_nil]} states that sorting the empty hunk list of a
+concrete empty diff returns the empty list.
+\end{theorem}
+
+\subsection{Downstream Use}
+
+\code{JsonParse.lean} uses \code{FromJson Diff} and \code{ToJson Diff}.
+\code{Semantics.lean} uses \code{BaseFile}, \code{slice},
+\code{Hunk.baseAligned}, \code{Diff.checkSchema}, and
+\code{Diff.sortedHunks}. \code{Conflict.lean} uses \code{Range}, \code{Hunk},
+and \code{Diff}. \code{History.lean} and \code{FullMerge.lean} use
+\code{Diff} as the payload for history and merge computations.

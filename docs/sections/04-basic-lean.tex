@@ -1,0 +1,82 @@
+\section{Basic.lean}
+
+\code{Basic.lean} is the repository foundation used by the V1 structured diff
+layer. The structured diff modules import this foundation rather than
+replacing it.
+
+\subsection{Imports}
+
+\begin{definition}[No imports]
+\code{[Basic.lean]} has no imports. It uses Lean core declarations only.
+\end{definition}
+
+\subsection{Repository Primitives}
+
+\begin{definition}[File]
+\code{[File]} is an abbreviation for \code{String}. It denotes a file path or
+file identifier.
+\end{definition}
+
+\begin{definition}[Content]
+\code{[Content]} is an abbreviation for \code{String}. It denotes the complete
+contents of a file as one string.
+\end{definition}
+
+\begin{definition}[Agent]
+\code{[Agent]} is an abbreviation for \code{Nat}. It denotes an agent id.
+\end{definition}
+
+\begin{definition}[Repository]
+\code{[Repository]} is an abbreviation for \code{File -> Option Content}. It is
+a partial map from file names to contents.
+\end{definition}
+
+\begin{definition}[System]
+\code{[System]} is a structure with fields \code{origin : Repository} and
+\code{agents : Agent -> Repository}. It represents one central repository and
+one local repository for each agent.
+\end{definition}
+
+\begin{definition}[Timeline]
+\code{[Timeline]} is an inductive type indexed by \code{System}. It has two
+constructors: \code{origin} and \code{agentic agent}.
+\end{definition}
+
+\subsection{Whole-File Patch Skeleton}
+
+\begin{definition}[FilePatch]
+\code{[FilePatch]} is an abbreviation for \code{File -> Option Content}. It is
+the existing whole-file patch concept from the repository foundation.
+\end{definition}
+
+\begin{definition}[Commit]
+\code{[Commit]} is a structure with fields \code{author : Agent},
+\code{changes : FilePatch}, and \code{commitMessage : String}.
+\end{definition}
+
+\subsection{Existing Action Skeleton}
+
+\code{Basic.lean} also contains an \code{ActionF}/\code{ActionM} skeleton for
+repository-level actions. The structured diff layer leaves that skeleton in
+place. It only changes the old whole-file patch name from \code{Diff} to
+\code{FilePatch}, because the structured JSON diff introduced in
+\code{Defns.lean} is named \code{Diff}.
+
+\begin{definition}[Compatibility rename]
+The compatibility edit is:
+\[
+  \code{Diff := File -> Option Content}
+  \quad\longrightarrow\quad
+  \code{FilePatch := File -> Option Content}.
+\]
+The \code{Commit.changes} field is updated accordingly.
+\end{definition}
+
+\subsection{Relationship To The Structured Diff Stack}
+
+\begin{definition}[Separation of roles]
+\code{Basic.lean} does not define structured line-edit declarations such as
+\code{Range}, \code{Hunk}, or the JSON-facing \code{Diff}. Those belong to
+\code{Defns.lean}. The older action skeleton in \code{Basic.lean} is preserved
+as existing repository code and remains separate from the structured diff core.
+\end{definition}
