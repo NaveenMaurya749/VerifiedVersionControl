@@ -4,6 +4,7 @@ import VersionControl.Basic
 import VersionControl.Defns
 import VersionControl.JsonParse
 import VersionControl.Semantics
+import VersionControl.Filesystem
 import VersionControl.Conflict
 import VersionControl.History
 import VersionControl.FullMerge
