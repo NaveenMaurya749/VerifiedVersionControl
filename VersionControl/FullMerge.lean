@@ -69,7 +69,8 @@ def mergedDiffFrom (common : BaseFile) (leftDiffs rightDiffs : List Diff) : Diff
     file := fileName
     timestamp := mergeArtifactTimestamp
     base_line_count := common.length
-    diffs := mergedHunks }
+    diffs := mergedHunks
+    newContent := none }
 
 @[simp] theorem residualDiffs_nil : residualDiffs [] = [] := rfl
 
