@@ -1,4 +1,4 @@
-
+import VersionControl.Defns
 namespace VersionControl
 
 namespace Diff
