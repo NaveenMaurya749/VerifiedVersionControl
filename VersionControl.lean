@@ -8,3 +8,5 @@ import VersionControl.Filesystem
 import VersionControl.Conflict
 import VersionControl.History
 import VersionControl.FullMerge
+import VersionControl.ErrorOutput
+import VersionControl.AgentInterface

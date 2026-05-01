@@ -1,4 +1,3 @@
-import VersionControl.Defns
 
 namespace VersionControl
 
@@ -6,23 +5,38 @@ namespace Diff
 
 def checkAgainstBase (diff : Diff) (base : BaseFile) : Except String Unit := do
   diff.checkSchema
-  if diff.base_line_count = base.length then
+  match diff.newContent with
+  | some _ =>
+    -- Binary replacement: no line-count or hunk checks needed
     pure ()
-  else
-    .error "declared base_line_count does not match the supplied base file"
-  for hunk in diff.diffs do
-    if hunk.before = slice base hunk.range then
+  | none =>
+    -- Text diff: verify base line count and hunk alignment
+    if diff.base_line_count = base.length then
       pure ()
     else
-      .error s!"base drift detected at hunk {hunk.seq}"
+      .error "declared base_line_count does not match the supplied base file"
+    for hunk in diff.diffs do
+      if hunk.before = slice base hunk.range then
+        pure ()
+      else
+        .error s!"base drift detected at hunk {hunk.seq}"
 
 end Diff
 
+/--
+Extracts the unchanged lines between two hunk application points.
+Only meaningful for text content.
+-/
 def unchangedSegment (base : BaseFile) (cursor nextStart : Nat) : List String :=
-  (base.drop (cursor - 1)).take (nextStart - cursor)
+  match base with
+  | .text lines => (lines.drop (cursor - 1)).take (nextStart - cursor)
+  | .binary _   => []
 
 def applyOrderedHunks (base : BaseFile) : Nat → List Hunk → Except String BaseFile
-  | cursor, [] => .ok (base.drop (cursor - 1))
+  | cursor, [] =>
+      match base with
+      | .text lines => .ok (.text (lines.drop (cursor - 1)))
+      | .binary _   => .ok base
   | cursor, hunk :: rest =>
       if _ : ¬ hunk.range.wellFormed base.length then
         .error s!"invalid range for hunk {hunk.seq}"
@@ -34,36 +48,67 @@ def applyOrderedHunks (base : BaseFile) : Nat → List Hunk → Except String Ba
         .error s!"operation shape mismatch at hunk {hunk.seq}"
       else do
         let tail ← applyOrderedHunks base hunk.range.stop rest
-        pure (unchangedSegment base cursor hunk.range.start ++ hunk.after ++ tail)
+        -- tail is a Content but we need to prepend lines to it
+        match tail with
+        | .text tailLines =>
+            let prefix := unchangedSegment base cursor hunk.range.start
+            pure (.text (prefix ++ hunk.after ++ tailLines))
+        | .binary _ =>
+            .error s!"internal error: binary tail in text hunk application"
 
+/--
+Apply a single hunk to a base file.
+-/
 def applyHunk (hunk : Hunk) (base : BaseFile) : Except String BaseFile :=
   applyOrderedHunks base 1 [hunk]
 
+/--
+The main diff application function. Branches on whether the diff
+is a binary replacement or a structured text diff.
+-/
 def applyDiff (diff : Diff) (base : BaseFile) : Except String BaseFile := do
   diff.checkAgainstBase base
-  applyOrderedHunks base 1 diff.sortedHunks
+  match diff.newContent with
+  | some newContent =>
+      -- Binary path: whole-file replacement, no hunk machinery
+      return newContent
+  | none =>
+      -- Text path: apply sorted hunks
+      applyOrderedHunks base 1 diff.sortedHunks
 
-@[simp, grind =] theorem applyDiff_empty (file : String) (hFile : file ≠ "") (base : BaseFile) :
+-- ============================================================
+-- Theorems
+-- ============================================================
+
+@[simp, grind =] theorem applyDiff_empty
+    (file : String) (hFile : file ≠ "") (base : BaseFile) :
     applyDiff
       { agent := 1
         file
         timestamp := "2026-01-01T00:00:00Z"
         base_line_count := base.length
-        diffs := [] } base = .ok base := by
+        diffs := []
+        newContent := none } base = .ok base := by
   simp [applyDiff, Diff.checkAgainstBase, Diff.checkSchema, hFile,
     Diff.sortedHunks, Diff.pairwiseSeparated, applyOrderedHunks]
+  cases base <;> simp [applyOrderedHunks]
 
-@[simp, grind =] theorem applyHunk_insert_at_start (line : String) (base : BaseFile) :
+@[simp, grind =] theorem applyHunk_insert_at_start
+    (line : String) (lines : List String) :
     applyHunk
         { seq := 1
           op := .insert
           range := { start := 1, stop := 1 }
           before := []
           after := [line] }
-        base =
-      .ok (line :: base) := by
-  simp [applyHunk, applyOrderedHunks, unchangedSegment, slice, Range.wellFormed,
-    Range.width, Hunk.opMatchesShape, Range.isInsert]
+        (.text lines) =
+      .ok (.text (line :: lines)) := by
+  simp [applyHunk, applyOrderedHunks, unchangedSegment, slice,
+    Range.wellFormed, Range.width, Hunk.opMatchesShape, Range.isInsert]
+
+-- ============================================================
+-- Inversion (unchanged from before)
+-- ============================================================
 
 def invertOp (op : Op) : Op :=
   match op with
@@ -86,10 +131,10 @@ def invertOrderedHunks : Int → List Hunk → List Hunk
   | delta, h :: rest =>
       let inverse :=
         { h with
-            op := invertOp h.op
+            op    := invertOp h.op
             range := inverseRangeOnPatched delta h
             before := h.after
-            after := h.before }
+            after  := h.before }
       inverse :: invertOrderedHunks (delta + hunkLineDelta h) rest
 
 def resultLineCount (diff : Diff) : Nat :=
@@ -101,11 +146,12 @@ def resultLineCount (diff : Diff) : Nat :=
 def invertDiff (d : Diff) : Diff :=
   { d with
       base_line_count := resultLineCount d
-      diffs := invertOrderedHunks 0 d.sortedHunks }
+      diffs           := invertOrderedHunks 0 d.sortedHunks
+      newContent      := none }
 
-@[simp, grind =] theorem invertHunk_involution (h : Hunk) : invertHunk (invertHunk h) = h := by
+@[simp, grind =] theorem invertHunk_involution (h : Hunk) :
+    invertHunk (invertHunk h) = h := by
   cases h with
-  | mk _ op _ _ _ =>
-      cases op <;> rfl
+  | mk _ op _ _ _ => cases op <;> rfl
 
 end VersionControl
