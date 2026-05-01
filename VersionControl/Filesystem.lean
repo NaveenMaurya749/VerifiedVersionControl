@@ -43,8 +43,12 @@ This is the bridge from raw OS bytes into the VCS type system.
 -/
 def bytesToContent (bytes : ByteArray) : Content :=
   match String.fromUTF8? bytes with
-  | some s => Content.text (s.splitOn "\n")
-  | none   => Content.binary bytes.data.toList
+  | some s =>
+      let lines := s.splitOn "\n"
+      -- drop the trailing empty string from a final newline
+      let lines := if lines.getLast? = some "" then lines.dropLast else lines
+      Content.text lines
+  | none => Content.binary bytes.data.toList
 
 /--
 Converts `Content` back to a ByteArray for writing to disk.
