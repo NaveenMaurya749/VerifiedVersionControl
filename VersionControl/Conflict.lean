@@ -159,7 +159,8 @@ def diffConflictFlag (left right : Diff) : Bool :=
         file := diff.file
         timestamp := diff.timestamp
         base_line_count := diff.base_line_count
-        diffs := [] } diff := by
+        diffs := []
+        newContent := none } diff := by    -- ← add this line
   simp [compatible]
 
 @[grind .] theorem compatible_empty_right (diff : Diff) :
@@ -168,7 +169,8 @@ def diffConflictFlag (left right : Diff) : Bool :=
         file := diff.file
         timestamp := diff.timestamp
         base_line_count := diff.base_line_count
-        diffs := [] } := by
+        diffs := []
+        newContent := none } := by         -- ← add this line
   simp [compatible]
 
 @[grind =] theorem compatible_comm {left right : Diff} :
