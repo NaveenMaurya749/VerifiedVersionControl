@@ -253,7 +253,7 @@ def checkSchema (diff : Diff) : Except String Unit := do
 
 @[simp, grind =] theorem sortedHunks_nil :
     ({ agent := 1, file := "x", timestamp := "2026-01-01T00:00:00Z",
-       base_line_count := 0, diffs := [] } : Diff).sortedHunks = [] := by
+       base_line_count := 0, diffs := [], newContent := none } : Diff).sortedHunks = [] := by
   simp [sortedHunks]
 
 end Diff
