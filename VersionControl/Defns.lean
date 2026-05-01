@@ -8,7 +8,7 @@ open Lean
 
 namespace VersionControl
 
-abbrev BaseFile := List String
+abbrev BaseFile := Content
 
 inductive Op where
   | insert
@@ -75,14 +75,16 @@ instance : ToJson Range where
     Json.arr #[toJson r.start, toJson r.stop]
 
 def slice (base : BaseFile) (range : Range) : List String :=
-  (base.drop (range.start - 1)).take range.width
+  match base with
+  | .text lines => (lines.drop (range.start - 1)).take range.width
+  | .binary _ => []  -- Binary files don't support slicing
 
 @[simp, grind =] theorem slice_of_insert (base : BaseFile) {range : Range} (h : range.isInsert) :
     slice base range = [] := by
   rcases range with ⟨start, stop⟩
   change start = stop at h
   subst stop
-  simp [slice, Range.width]
+  cases base <;> simp [slice, Range.width]
 
 structure Hunk where
   seq : Nat
@@ -161,16 +163,18 @@ structure Diff where
   timestamp : String
   base_line_count : Nat
   diffs : List Hunk
+  newContent : Option Content  -- For binary file replacement
   deriving Repr, DecidableEq, Inhabited, BEq
 
 instance : FromJson Diff where
   fromJson? json := do
-    let agent           : Agent     ← json.getObjValAs? (α := Nat)       "agent"
-    let file            : File      ← json.getObjValAs? (α := String)    "file"
-    let timestamp       : String    ← json.getObjValAs? (α := String)    "timestamp"
-    let base_line_count : Nat       ← json.getObjValAs? (α := Nat)       "base_line_count"
-    let diffs           : List Hunk ← json.getObjValAs? (α := List Hunk) "diffs"
-    pure { agent, file, timestamp, base_line_count, diffs }
+    let agent           : Agent       ← json.getObjValAs? (α := Nat)         "agent"
+    let file            : File        ← json.getObjValAs? (α := String)      "file"
+    let timestamp       : String      ← json.getObjValAs? (α := String)      "timestamp"
+    let base_line_count : Nat         ← json.getObjValAs? (α := Nat)         "base_line_count"
+    let diffs           : List Hunk   ← json.getObjValAs? (α := List Hunk)   "diffs"
+    let newContent      : Option Content ← json.getObjValAs? (α := Option Content) "newContent"
+    pure { agent, file, timestamp, base_line_count, diffs, newContent }
 
 instance : ToJson Diff where
   toJson diff :=
@@ -180,6 +184,7 @@ instance : ToJson Diff where
       , ("timestamp", toJson diff.timestamp)
       , ("base_line_count", toJson diff.base_line_count)
       , ("diffs", toJson diff.diffs)
+      , ("newContent", toJson diff.newContent)
       ]
 
 namespace Diff
@@ -209,14 +214,21 @@ instance (hunks : List Hunk) : Decidable (pairwiseSeparated hunks) := by
 
 def schemaWellFormed (diff : Diff) : Prop :=
   diff.metadataWellFormed ∧
-    pairwiseSeparated diff.sortedHunks ∧
-    ∀ h ∈ diff.diffs, h.schemaWellFormed diff.base_line_count
+    match diff.newContent with
+    | some _ => diff.diffs.isEmpty ∧ diff.base_line_count = 0
+    | none =>
+        pairwiseSeparated diff.sortedHunks ∧
+        ∀ h ∈ diff.diffs, h.schemaWellFormed diff.base_line_count
 
 def wellFormed (base : BaseFile) (diff : Diff) : Prop :=
   diff.metadataWellFormed ∧
-    diff.base_line_count = base.length ∧
-    pairwiseSeparated diff.sortedHunks ∧
-    ∀ h ∈ diff.diffs, h.wellFormed base
+    match diff.newContent with
+    | some _ =>
+        diff.diffs.isEmpty ∧ diff.base_line_count = 0
+    | none =>
+        diff.base_line_count = base.length ∧
+        pairwiseSeparated diff.sortedHunks ∧
+        ∀ h ∈ diff.diffs, h.wellFormed base
 
 def checkSchema (diff : Diff) : Except String Unit := do
   if diff.agent = 0 then
@@ -225,12 +237,19 @@ def checkSchema (diff : Diff) : Except String Unit := do
     .error "file must be non-empty"
   else
     pure ()
-  for h in diff.diffs do
-    h.checkSchema diff.base_line_count
-  if pairwiseSeparated diff.sortedHunks then
-    pure ()
-  else
-    .error "diff hunks must be pairwise non-overlapping"
+  match diff.newContent with
+  | some _ =>
+      if diff.diffs.isEmpty ∧ diff.base_line_count = 0 then
+        pure ()
+      else
+        .error "binary diffs must have empty hunks and base_line_count = 0"
+  | none =>
+      for h in diff.diffs do
+        h.checkSchema diff.base_line_count
+      if pairwiseSeparated diff.sortedHunks then
+        pure ()
+      else
+        .error "diff hunks must be pairwise non-overlapping"
 
 @[simp, grind =] theorem sortedHunks_nil :
     ({ agent := 1, file := "x", timestamp := "2026-01-01T00:00:00Z",

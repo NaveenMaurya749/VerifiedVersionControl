@@ -41,12 +41,12 @@ def isBinaryFile (path : File) : IO Bool := do
 
 inductive FileContent where
   | Text   (s : String)
-  | Binary (b : ByteArray)
+  | Binary (b : List UInt8)
 
 def readFileSmart (path : File) : IO FileContent := do
   let bytes ← readBinaryFile path
   match bytesToString bytes with
-  | .ok s    => return FileContent.Text s    -- was: pure .Text s
-  | .error _ => return FileContent.Binary bytes  -- was: pure .Binary bytes
+  | .ok s    => return FileContent.Text s
+  | .error _ => return FileContent.Binary bytes.data.toList
 
 end VersionControl

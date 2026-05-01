@@ -1,11 +1,48 @@
+import Lean.Data.Json.Basic
+import Lean.Data.Json.FromToJson.Basic
+
+open Lean
+
 namespace VersionControl
 
+set_option linter.unusedVariables false
+
 -- TODO : Change this to encode a reference to an external filesystem, and also later
--- supplement it with implementation of the filesystem, but for now have it be purely formally in 
+-- supplement it with implementation of the filesystem, but for now have it be purely formally in
 -- Lean.
-abbrev File := String     -- Filepath 
-abbrev Content := String  -- Contents as a string
-abbrev Agent := Nat     -- Identifiers for local agents 
+abbrev File := String     -- Filepath
+inductive Content where
+  | text   (lines : List String)
+  | binary (data : List UInt8)
+  deriving DecidableEq, Inhabited, BEq
+
+namespace Content
+
+def length : Content → Nat
+  | .text lines => lines.length
+  | .binary _ => 0
+
+end Content
+
+-- JSON instances for Content
+-- Binary content is represented as null in JSON (file I/O handles real binary)
+instance : FromJson Content where
+  fromJson? json := do
+    let tag ← json.getObjValAs? (α := String) "tag"
+    match tag with
+    | "text" =>
+        let data ← json.getObjValAs? (α := List String) "data"
+        pure (.text data)
+    | "binary" =>
+        .error "binary content cannot be deserialized from JSON; use Filesystem module instead"
+    | _ => .error "invalid content tag"
+
+instance : ToJson Content where
+  toJson c :=
+    match c with
+    | .text data => Json.mkObj [("tag", "text"), ("data", toJson data)]
+    | .binary _ => Json.mkObj [("tag", "binary"), ("data", Json.null)]
+abbrev Agent := Nat     -- Identifiers for local agents
 
 -- A partial map from filepaths to content
 -- (We can change this later to refer an actual filesystem)
@@ -28,7 +65,7 @@ structure Commit where
   (changes : FilePatch)
   (commitMessage : String)
 
--- ActionF is the fuctorial wrapper for actions 
+-- ActionF is the fuctorial wrapper for actions
 inductive ActionF (σ : System) (α : Type) where
 | commit : Agent → Commit → α → ActionF σ α
 | merge  : (source : Timeline σ) → (dest : Timeline σ) → α → ActionF σ α
@@ -41,7 +78,7 @@ def ActionF.map {σ : System} {α β} (f : α → β) : ActionF σ α → Action
 instance (σ : System) : Functor (ActionF σ) where
   map := ActionF.map
 
--- ActionM is the free monad over ActionF 
+-- ActionM is the free monad over ActionF
 inductive ActionM {σ : System} : Type → Type _ where
 | pure : α → ActionM α
 | impure : ActionF σ β → (β → ActionM α) → ActionM α
@@ -68,10 +105,10 @@ structure SafeAction (σ : System) where
   action : ActionF σ Unit
   proof  : isSafeAction σ action
 
-def execSafeAction (σ : System) : SafeAction σ → System 
+def execSafeAction (σ : System) : SafeAction σ → System
 | ⟨ActionF.commit id c _, proof⟩ => σ
   -- Semantics of commits onto actual Repository
-| ⟨ActionF.merge t1 t2 next, proof⟩ => σ 
+| ⟨ActionF.merge t1 t2 next, proof⟩ => σ
   -- semantics of merging when proven safe
 --
 -- TODO : In the future, add a `--force` option to merge, given appropriate credentials which will
@@ -82,7 +119,7 @@ def execSafeAction (σ : System) : SafeAction σ → System
 
 inductive SafeProgram : System → System → Type where
 | nil  {σ : System} : SafeProgram σ σ
-| cons {σ₁ σ₂ : System} : (act : SafeAction σ₂) → (rest : SafeProgram σ₁ σ₂) → SafeProgram σ₁ (execSafeAction σ₂ act) 
+| cons {σ₁ σ₂ : System} : (act : SafeAction σ₂) → (rest : SafeProgram σ₁ σ₂) → SafeProgram σ₁ (execSafeAction σ₂ act)
 
 -- The logic to verify whether a given Program (ActionM σ Unit) leads to a SafeProgram
 --def verify : (σ : System) → @ActionM σ Unit → Option (Σ σ', SafeProgram σ σ') := sorry
