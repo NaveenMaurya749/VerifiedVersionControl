@@ -17,7 +17,7 @@ Documentation for the project is available in either `V1_OVERVIEW.md` or `docs/V
 This project was built during the **LeanLang for Verified
 Autonomy Hackathon** (April 17–18 + online through May 1,
 2026) at the **Indian Institute of Science (IISc),
-Bangalore**.
+Bangalore** where it won Honourable Mention.
 Sponsored by **[Emergence AI](https://www.emergence.ai)**
 Organized by **[Emergence India Labs](https://east.emergence.ai)** in collaboration with
 **IISc Bangalore**.
