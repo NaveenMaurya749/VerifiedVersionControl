@@ -14,7 +14,7 @@ abbrev File := String     -- Filepath
 inductive Content where
   | text   (lines : List String)
   | binary (data : List UInt8)
-  deriving DecidableEq, Inhabited, BEq
+  deriving DecidableEq, Inhabited, BEq, Repr
 
 namespace Content
 

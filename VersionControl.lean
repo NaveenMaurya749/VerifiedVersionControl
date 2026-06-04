@@ -9,4 +9,5 @@ import VersionControl.Conflict
 import VersionControl.History
 import VersionControl.FullMerge
 import VersionControl.ErrorOutput
+import VersionControl.Pipeline
 import VersionControl.AgentInterface

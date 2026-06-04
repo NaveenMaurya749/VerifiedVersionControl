@@ -60,7 +60,7 @@ instance : ToString AgentResponse where
 open Lean in
 instance : ToJson AgentError where
   toJson e := Json.mkObj
-    [ ("stage",   toJson e.stage.toString)
+    [ ("stage",   toJson (toString e.stage))
     , ("message", toJson e.message) ]
 
 open Lean in

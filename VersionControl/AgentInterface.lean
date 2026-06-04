@@ -33,7 +33,7 @@ Runs the full pipeline for one agent commit attempt:
 Returns `AgentResponse.ok` or a structured rejection.
 -/
 def submitCommit
-    (agentId      : Agent)
+    (_agentId     : Agent)
     (diffJson     : String)       -- raw JSON string from the LLM
     (pendingDiffs : List Diff)    -- other agents' diffs not yet merged
     (filePath     : File)         -- path to the file being edited
@@ -63,8 +63,8 @@ def submitCommit
   match diff.checkAgainstBase base with
   | .error e =>
       return AgentResponse.reject .BaseAlignment
-        s!"Diff does not align with current file contents: {e}\n" ++
-        s!"Hint: re-read the file and regenerate your diff from the current version."
+        (s!"Diff does not align with current file contents: {e}\n" ++
+        s!"Hint: re-read the file and regenerate your diff from the current version.")
   | .ok _ => pure ()
 
   -- Stage 4: Conflict check against pending diffs from other agents

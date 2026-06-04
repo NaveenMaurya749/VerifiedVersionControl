@@ -51,8 +51,8 @@ def applyOrderedHunks (base : BaseFile) : Nat → List Hunk → Except String Ba
         -- tail is a Content but we need to prepend lines to it
         match tail with
         | .text tailLines =>
-            let prefix := unchangedSegment base cursor hunk.range.start
-            pure (.text (prefix ++ hunk.after ++ tailLines))
+            let pre := unchangedSegment base cursor hunk.range.start
+            pure (.text (pre ++ hunk.after ++ tailLines))
         | .binary _ =>
             .error s!"internal error: binary tail in text hunk application"
 
@@ -90,7 +90,7 @@ def applyDiff (diff : Diff) (base : BaseFile) : Except String BaseFile := do
         diffs := []
         newContent := none } base = .ok base := by
   simp [applyDiff, Diff.checkAgainstBase, Diff.checkSchema, hFile,
-    Diff.sortedHunks, Diff.pairwiseSeparated, applyOrderedHunks]
+    Diff.sortedHunks, Diff.pairwiseSeparated]
   cases base <;> simp [applyOrderedHunks]
 
 @[simp, grind =] theorem applyHunk_insert_at_start
@@ -105,6 +105,7 @@ def applyDiff (diff : Diff) (base : BaseFile) : Except String BaseFile := do
       .ok (.text (line :: lines)) := by
   simp [applyHunk, applyOrderedHunks, unchangedSegment, slice,
     Range.wellFormed, Range.width, Hunk.opMatchesShape, Range.isInsert]
+  rfl
 
 -- ============================================================
 -- Inversion (unchanged from before)
